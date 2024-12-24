@@ -1,62 +1,77 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import io from 'socket.io-client';
 
 const socket = io('http://localhost:5000'); // Backend URL
 
 function App() {
-  const [messages, setMessages] = useState([]);
+  
   const [message, setMessage] = useState('');
   const [username, setUsername] = useState('');
-  const [roomName, setRoomname] = useState("");
+  const [onlineUsers, setOnlineuser] = useState([]);
+
+  const [listner, setListner] = useState('');
+
+  const [allchat, setAllchat] = useState([]);
+
+  
+
+  
+
 
   useEffect(() => {
+    
 
-    const handlePreviousMessages = (msgs) => {
-      setMessages(msgs);
+    const handleOnlineUsers = (onlineUserslist) => {
+      setOnlineuser(onlineUserslist);
     };
 
-    const handleChatMessage = (msg) => {
-      console.log(msg);
-      setMessages((prev) => [...prev, msg]);
+
+    // Listen for online users
+    socket.on('onlineUsers', handleOnlineUsers);
+
+    const handleAllchat = (allchat) => {
+      setAllchat(allchat);
+      
     };
 
-    // Load previous messages
-    socket.on('previousMessages', handlePreviousMessages);
+    socket.on('receive_message', handleAllchat);
 
-    // Listen for new messages
-    socket.on('chatMessage', handleChatMessage);
+    const handleAllchattwo = (allchat,socketid) => {
+      
+      console.log("The listner is");
+      console.log(listner); 
 
-    socket.on('message',handleChatMessage);
+      console.log("The socket id is");
+      console.log(socketid);
+      if(listner === socketid)
+      {
+        setAllchat(allchat);
+        
+      }
+    }
+    socket.on('receive_message_sec', handleAllchattwo );
 
     return () => {
-      socket.off('previousMessages', handlePreviousMessages);
-      socket.off('chatMessage', handleChatMessage);
+      socket.off('onlineUsers', handleOnlineUsers);
+      socket.off('receive_message', handleAllchat);
+      socket.off('receive_message_sec', handleAllchattwo);
     };
-  }, []);
+  }, [listner]);
 
-  // const sendMessage = () => {
-  //   if (message.trim() && username.trim()) {
-  //     socket.emit('chatMessage', { username, message });
-  //     setMessage('');
-  //   }
-  // };
+  const sendtext = () => {
+    socket.emit('sendMessage', { listner, message });
+    setMessage('');
+  };
 
-  const sendtext = () =>
-  {
-    socket.emit('sendMessage',{roomName,username,message});
-    // setMessages((prev) => [...prev, msg]);
-  }
+  
 
-  const joinRoom = (roomname) => {
-
+  const startChat = (userKey) => {
+    console.log(socket.id);
+    console.log(`Starting chat with user: ${userKey}`);
+    setListner(userKey);
     
-    
-    
-    socket.emit('joinRoom',{roomName,username,roomname})
-    //here roomname is the new roomname
-    //and roomName is the old roomname, kinda, cause we have not updated it...u get it
-    setRoomname(roomname);
-  }
+    socket.emit('getchathistory',userKey);
+  };
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial' }}>
@@ -72,42 +87,46 @@ function App() {
       </div>
       
       <div>
-      <div style={{display:"flex"}}>
-        
-        <div style={{ border: '1px solid #ccc', padding: '10px', height: '280px', overflowY: 'scroll',width:'30vw' , marginTop:"65px"}}>
-          <div style={{display:"flex", border: '1px solid #ccc', justifyContent:"space-around"}}>
-            <p>Room 1</p>
-            <button onClick={() => joinRoom("room1")}>Join Room</button>
-            
+        <div style={{ display: "flex" }}>
+          <div style={{ border: '1px solid #ccc', padding: '10px', height: '280px', overflowY: 'scroll', width: '30vw', marginTop: "65px" }}>
+          <div>
+            {onlineUsers
+              .filter(user => user !== socket.id) // Filter out the current user's socket.id
+              .map((user) => (
+                <div 
+                  key={user} 
+                  style={{ display: "flex", border: '1px solid #ccc', justifyContent: "space-around" }}
+                  onClick={() => startChat(user)}>
+                  {user}
+                </div>
+              ))}
           </div>
-          <div style={{display:"flex", border: '1px solid #ccc', justifyContent:"space-around"}}>
-            <p>Room 2</p>
-            <button onClick={() => joinRoom("room2")}>Join Room</button>
-           
           </div>
-        </div>
-        <div>
-          <h2 style={{textAlign:"center"}}>Messages:</h2>
-          <div style={{ border: '1px solid #ccc', padding: '10px', minHeight: '300px', overflowY: 'scroll',width:'50vw' }}>
-          {messages.map((msg, idx) => (
-            <div key={idx}>
-              <strong>{msg.username}:</strong> {msg.message}
+          <div>
+            <h2 style={{ textAlign: "center" }}>Messages: {listner}</h2> 
+            <div style={{ border: '1px solid #ccc', padding: '10px', minHeight: '300px', overflowY: 'scroll', width: '50vw' }}>
+              
+
+              {
+                allchat.map(({ sender, message }, idx) => (
+                  <div key={`${sender}-${idx}`}>
+                    <strong>{sender}:</strong> {message}
+                  </div>
+                ))
+              }
             </div>
-          ))}
+            <div style={{ margin: '20px 0' }}>
+              <input
+                type="text"
+                placeholder="Type a message"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                style={{ padding: '10px', width: '300px' }}
+              />
+              <button onClick={sendtext} style={{ padding: '10px' }}>Send</button> 
+            </div>
+          </div>
         </div>
-        <div style={{ margin: '20px 0' }}>
-        <input
-          type="text"
-          placeholder="Type a message"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          style={{ padding: '10px', width: '300px' }}
-        />
-        <button onClick={sendtext} style={{ padding: '10px' }}>Send</button>
-      </div>
-        </div>
-        
-      </div>
       </div>
     </div>
   );

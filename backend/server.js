@@ -15,58 +15,98 @@ const io = new Server(server, {
 app.use(cors());
 
 // In-memory message storage
-const messages = [];
-const messagesByRoom = {};
 
-// Socket.io
+const allmessages = {};
+
+const chatMap = new Map();
+
+
+const onlineUserslist = [];
+
 io.on('connection', (socket) => {
-  console.log('A user connected');
+  console.log(socket.id);
 
-  // console.log(socket.id);
-  // console.log(messages);
+  // When a new user connects
+  onlineUserslist.push(socket.id);
 
-  // Send previous messages to the connected user;
-  // socket.emit('previousMessages', messages);
+  // Emit to all connected sockets
+  io.emit('onlineUsers', onlineUserslist);
+
+  // Emit to the newly connected user
+  socket.emit('onlineUsers', onlineUserslist);
 
   // Listen for new messages
   socket.on('chatMessage', (msg) => {
     messages.push(msg); // Store the message in memory
-    io.emit('chatMessage', msg); // Broadcast the message to all clients
+    io.emit('chatMessage', msg); // Emit the message to all connected clients
   });
 
-  socket.on('joinRoom',({roomName,username,roomname})=>{
-    //here roomName represt the current room the client is in, we have to make the client leave from that room if he want to join another one.
+  socket.on('sendMessage',({listner,message} )=> {
+   console.log(listner);
 
-    socket.leave(roomName);
+   console.log(message);
 
-    //roomname is the new room our client is going to join
-    socket.join(roomname);
-    console.log(`User ${username} joined room: ${roomname}`);
+   console.log(socket.id);
 
-    socket.to(roomname).emit('chatMessage',{ username: "Alert", message:`User ${username} joined room: ${roomname}` });
+   // Normalize the key by sorting the array
+   const key = [listner, socket.id].sort().join('|'); // Use '|' as separator for unique key string
+
+   console.log(key);
+
+   // Check if the chat already exists between these two users
+   if (!chatMap.has(key)) {
+       // If not, initialize an empty array for their chat
+       chatMap.set(key, []);
+   }
+
+    // Add the message along with sender ID to the chat
+    chatMap.get(key).push({ sender: socket.id, message });
+
+    console.log(chatMap); // To debug the current state of chats
+
+    // Emit the message to the sender
+    io.to(listner).emit('receive_message_sec',chatMap.get(key),socket.id); 
+    socket.emit('receive_message',chatMap.get(key)); 
+
+
     
 
-    if (messagesByRoom[roomname]) {
-      socket.emit('previousMessages', messagesByRoom[roomname]);
-    } else {
-      // Initialize an empty array for new rooms
-      messagesByRoom[roomname] = [];
-    }
 
   })
 
-  socket.on("sendMessage",({roomName,username,message})=>{
-    io.to(roomName).emit('chatMessage',{ username, message });
-    console.log(`Msg to ${roomName}: ${message}`);
+  socket.on('getchathistory', (userKey) => {
 
-    if (!messagesByRoom[roomName]) {
-      messagesByRoom[roomName] = [];
+    const key = [userKey, socket.id].sort().join('|'); 
+
+    console.log(key);
+
+   // Check if the chat already exists between these two users
+    if (!chatMap.has(key)) {
+        // If not, initialize an empty array for their chat
+        chatMap.set(key, []);
     }
-    messagesByRoom[roomName].push({ username, message });
+
+    
+    socket.emit('receive_message',chatMap.get(key));
+
+
+
   })
 
+
+
+  
+
+
+
+
+  // Handle user disconnect
   socket.on('disconnect', () => {
-    console.log('A user disconnected');
+    const index = onlineUserslist.indexOf(socket.id);
+    if (index !== -1) {
+      onlineUserslist.splice(index, 1);
+    }
+    io.emit('onlineUsers', onlineUserslist);
   });
 });
 
