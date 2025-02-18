@@ -45,9 +45,6 @@ PORT=5000
 MONGO_URI=your_mongodb_connection_string
 ```
 
-## 📜 License
-This project is licensed under the **MIT License**.
-
 ## 🤝 Contributing
 Feel free to **fork** this repository, create a **feature branch**, and submit a **pull request**!
 
